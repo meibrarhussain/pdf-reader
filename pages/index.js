@@ -1,40 +1,46 @@
-import { useState } from 'react';
+// pages/index.js
+
+import React, { useState } from 'react';
+import { pdfToImages, OCRImages } from '../src/utils/pdfUtils';
 
 export default function Home() {
-  const [file, setFile] = useState(null);
-  const [text, setText] = useState('');
+  const [pdfFile, setPdfFile] = useState(null);
+  const [numPages, setNumPages] = useState(null);
+  const [textData, setTextData] = useState('');
 
-  const handleFileChange = async (event) => {
-    const selectedFile = event.target.files[0];
-    setFile(selectedFile);
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      setText(data.text);
-    } catch (error) {
-      console.error('Error uploading file:', error);
-    }
+  const onFileChange = (e) => {
+    const file = e.target.files[0];
+    setPdfFile(file);
   };
+
+  const extractTextFromPdf = async () => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const typedArray = new Uint8Array(reader.result);
+      const images = await pdfToImages(typedArray, {
+        onStart: () => console.log('Started converting PDF to images...'),
+        onProgress: (progress) => console.log(`Converted ${progress.current}/${progress.total} pages`),
+      });
+  
+      const extractedText = await OCRImages(images, {
+        onStart: () => console.log('Started OCR processing...'),
+        onProgress: (progress) => console.log(`Processed ${progress.current}/${progress.total} images`),
+      });
+  
+      setTextData(JSON.stringify(extractedText, null, 2));
+    };
+    reader.readAsArrayBuffer(pdfFile);
+  };
+  
 
   return (
     <div>
-      <h1>PDF Text Extractor</h1>
-      <input type="file" onChange={handleFileChange} />
-      {file && (
-        <div>
-          <h2>Uploaded File: {file.name}</h2>
-          <div>
-            <h3>Extracted Text:</h3>
-            <pre>{text}</pre>
-          </div>
-        </div>
+      <input type="file" onChange={onFileChange} />
+      {pdfFile && (
+        <>
+          <button onClick={extractTextFromPdf}>Extract Text</button>
+          <pre>{textData}</pre>
+        </>
       )}
     </div>
   );
