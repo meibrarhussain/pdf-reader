@@ -1,11 +1,10 @@
 // pages/index.js
 
 import React, { useState } from 'react';
-import { pdfToImages, OCRImages } from '../src/utils/pdfUtils';
+import { pdfToTextAndImages, OCRImages } from '../src/utils/pdfUtils';
 
 export default function Home() {
   const [pdfFile, setPdfFile] = useState(null);
-  const [numPages, setNumPages] = useState(null);
   const [textData, setTextData] = useState('');
 
   const onFileChange = (e) => {
@@ -17,21 +16,25 @@ export default function Home() {
     const reader = new FileReader();
     reader.onload = async () => {
       const typedArray = new Uint8Array(reader.result);
-      const images = await pdfToImages(typedArray, {
-        onStart: () => console.log('Started converting PDF to images...'),
-        onProgress: (progress) => console.log(`Converted ${progress.current}/${progress.total} pages`),
+      const { textData, images } = await pdfToTextAndImages(typedArray, {
+        onStart: () => console.log('Started extracting text and images from PDF...'),
       });
-  
-      const extractedText = await OCRImages(images, {
-        onStart: () => console.log('Started OCR processing...'),
-        onProgress: (progress) => console.log(`Processed ${progress.current}/${progress.total} images`),
-      });
-  
-      setTextData(JSON.stringify(extractedText, null, 2));
+
+      let extractedText = textData;
+      if (images.length > 0) {
+        const ocrTexts = await OCRImages(images, {
+          onStart: () => console.log('Started OCR processing...'),
+          onProgress: (progress) => console.log(`Processed ${progress.current}/${progress.total} images`),
+        });
+        Object.keys(ocrTexts).forEach((index) => {
+          extractedText += `\nImage ${index}:\n${ocrTexts[index]}\n`; // Add OCR text to the extracted text
+        });
+      }
+
+      setTextData(extractedText);
     };
     reader.readAsArrayBuffer(pdfFile);
   };
-  
 
   return (
     <div>
